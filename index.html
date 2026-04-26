@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Calendar</title>
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#ffffff" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Calendar" />
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #fff; color: #111; max-width: 680px; margin: 0 auto; padding: 1rem; }
+@media (prefers-color-scheme: dark) {
+  body { background: #111; color: #eee; }
+  .day { background: #1a1a1a; border-color: #333; }
+  .day:hover { background: #222; }
+  .nav-btn, .import-btn { border-color: #444; color: #ccc; }
+  .nav-btn:hover, .import-btn:hover { background: #222; }
+  .modal { background: #1a1a1a; border-color: #444; }
+  .modal input[type=text] { background: #111; color: #eee; border-color: #444; }
+  .event-item { border-color: #333; }
+  .import-note { color: #888; }
+  .day-num { color: #888; }
+  .weekday { color: #888; }
+}
+.cal { padding: 1rem 0; }
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+.month-label { font-size: 20px; font-weight: 500; }
+.nav-btn { background: none; border: 1px solid #ddd; border-radius: 8px; padding: 6px 16px; cursor: pointer; font-size: 16px; }
+.nav-btn:hover { background: #f5f5f5; }
+.toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap; }
+.import-btn { font-size: 13px; padding: 6px 14px; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; background: none; color: #555; }
+.import-btn:hover { background: #f5f5f5; }
+.import-note { font-size: 11px; color: #999; }
+.weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 4px; }
+.weekday { text-align: center; font-size: 11px; color: #999; padding: 4px 0; }
+.days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.day { min-height: 72px; padding: 6px; border-radius: 8px; border: 1px solid #eee; cursor: pointer; background: #fff; }
+.day:hover { border-color: #ccc; background: #fafafa; }
+.day.empty { border-color: transparent; cursor: default; background: none; }
+.day.empty:hover { background: none; }
+.day-num { font-size: 12px; color: #999; margin-bottom: 4px; }
+.day.today .day-num { font-weight: 600; color: #1a73e8; }
+.event { font-size: 10px; background: #e8f0fe; color: #1a56db; border-radius: 3px; padding: 1px 4px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; }
+.modal-bg.open { display: flex; }
+.modal { background: #fff; border: 1px solid #ddd; border-radius: 12px; padding: 1.25rem; width: 300px; }
+.modal h3 { font-size: 16px; font-weight: 500; margin-bottom: 1rem; }
+.modal input[type=text] { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; margin-bottom: 10px; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.modal-actions button { font-size: 13px; padding: 7px 16px; border-radius: 8px; cursor: pointer; border: 1px solid #ddd; background: none; }
+.modal-actions .save { background: #1a73e8; color: #fff; border-color: transparent; }
+.event-list { margin-top: 6px; }
+.event-item { display: flex; align-items: center; justify-content: space-between; font-size: 13px; padding: 5px 0; border-bottom: 1px solid #f0f0f0; gap: 6px; }
+.event-item span { flex: 1; }
+.del-btn { background: none; border: none; cursor: pointer; color: #bbb; font-size: 16px; padding: 0 2px; line-height: 1; }
+.del-btn:hover { color: #e44; }
+.add-new { font-size: 13px; color: #999; cursor: pointer; margin-top: 10px; display: inline-block; }
+.add-new:hover { color: #111; }
+.add-form { margin-top: 8px; display: none; }
+.add-form.open { display: block; }
+</style>
+</head>
+<body>
+<div class="cal">
+  <div class="header">
+    <button class="nav-btn" onclick="changeMonth(-1)">&#8592;</button>
+    <span class="month-label" id="monthLabel"></span>
+    <button class="nav-btn" onclick="changeMonth(1)">&#8594;</button>
+  </div>
+  <div class="toolbar">
+    <button class="import-btn" onclick="document.getElementById('csvFile').click()">Import CSV</button>
+    <button class="import-btn" onclick="document.getElementById('icsFile').click()">Import ICS</button>
+    <span class="import-note" id="importNote"></span>
+    <input type="file" id="csvFile" accept=".csv" style="display:none" onchange="importCSV(event)" />
+    <input type="file" id="icsFile" accept=".ics,.ical" style="display:none" onchange="importICS(event)" />
+  </div>
+  <div class="weekdays">
+    <div class="weekday">Mon</div><div class="weekday">Tue</div><div class="weekday">Wed</div>
+    <div class="weekday">Thu</div><div class="weekday">Fri</div><div class="weekday">Sat</div><div class="weekday">Sun</div>
+  </div>
+  <div class="days" id="daysGrid"></div>
+</div>
+
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <h3 id="modalTitle"></h3>
+    <div class="event-list" id="eventList"></div>
+    <span class="add-new" onclick="toggleAddForm()">+ add event</span>
+    <div class="add-form" id="addForm">
+      <input type="text" id="eventInput" placeholder="Event name..." />
+      <div class="modal-actions">
+        <button onclick="closeModal()">Cancel</button>
+        <button class="save" onclick="saveEvent()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTH_NAMES = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+let current = new Date();
+let viewYear = current.getFullYear();
+let viewMonth = current.getMonth();
+let events = JSON.parse(localStorage.getItem('cal_events') || '{}');
+let selectedKey = null;
+
+function save() { localStorage.setItem('cal_events', JSON.stringify(events)); }
+function dateKey(y, m, d) { return y+'-'+(m+1)+'-'+d; }
+
+function addEvent(key, label) {
+  if (!events[key]) events[key] = [];
+  if (!events[key].includes(label)) { events[key].push(label); save(); }
+}
+
+function parseCSVDate(str) {
+  const parts = str.trim().split('-');
+  if (parts.length < 2) return null;
+  const d = parseInt(parts[0]);
+  const mIdx = MONTH_NAMES.indexOf(parts[1].toLowerCase().slice(0,3));
+  if (isNaN(d) || mIdx < 0) return null;
+  let y = parts.length >= 3 ? parseInt(parts[2]) : current.getFullYear();
+  if (parts.length < 3 && mIdx < current.getMonth()) y++;
+  return { y, m: mIdx, d };
+}
+
+function importCSV(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const lines = ev.target.result.split('\n').filter(l => l.trim());
+    let imported = 0;
+    lines.forEach((line, idx) => {
+      if (idx === 0 && line.toLowerCase().includes('date')) return;
+      const cols = line.split(',').map(c => c.replace(/^"|"$/g,'').trim());
+      const parsed = parseCSVDate(cols[0]);
+      const eventText = cols[2] || '', location = cols[3] || '';
+      if (!parsed || !eventText) return;
+      addEvent(dateKey(parsed.y, parsed.m, parsed.d), location ? eventText + ' — ' + location : eventText);
+      imported++;
+    });
+    document.getElementById('importNote').textContent = imported + ' event' + (imported !== 1 ? 's' : '') + ' imported';
+    jumpToFirstEvent(); render();
+  };
+  reader.readAsText(file); e.target.value = '';
+}
+
+function importICS(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const text = ev.target.result.replace(/\r\n|\r/g, '\n').replace(/\n /g, '');
+    const vevents = text.split('BEGIN:VEVENT').slice(1);
+    let imported = 0;
+    vevents.forEach(block => {
+      const summary = (block.match(/^SUMMARY[^:]*:(.+)$/m) || [])[1] || '';
+      const dtstart = (block.match(/^DTSTART[^:]*:(.+)$/m) || [])[1] || '';
+      const location = (block.match(/^LOCATION[^:]*:(.+)$/m) || [])[1] || '';
+      if (!summary || !dtstart) return;
+      const dateStr = dtstart.replace(/T.*/, '').trim();
+      if (dateStr.length < 8) return;
+      const y = parseInt(dateStr.slice(0,4)), m = parseInt(dateStr.slice(4,6))-1, d = parseInt(dateStr.slice(6,8));
+      if (isNaN(y)||isNaN(m)||isNaN(d)) return;
+      addEvent(dateKey(y, m, d), location ? summary.trim() + ' — ' + location.trim() : summary.trim());
+      imported++;
+    });
+    document.getElementById('importNote').textContent = imported + ' event' + (imported !== 1 ? 's' : '') + ' imported';
+    jumpToFirstEvent(); render();
+  };
+  reader.readAsText(file); e.target.value = '';
+}
+
+function jumpToFirstEvent() {
+  const firstKey = Object.keys(events).sort()[0];
+  if (!firstKey) return;
+  const parts = firstKey.split('-');
+  viewYear = parseInt(parts[0]); viewMonth = parseInt(parts[1]) - 1;
+}
+
+function render() {
+  document.getElementById('monthLabel').textContent = MONTHS[viewMonth] + ' ' + viewYear;
+  const grid = document.getElementById('daysGrid');
+  grid.innerHTML = '';
+  let startDay = new Date(viewYear, viewMonth, 1).getDay();
+  startDay = startDay === 0 ? 6 : startDay - 1;
+  const days = new Date(viewYear, viewMonth+1, 0).getDate();
+  for (let i = 0; i < startDay; i++) { const el = document.createElement('div'); el.className = 'day empty'; grid.appendChild(el); }
+  for (let d = 1; d <= days; d++) {
+    const el = document.createElement('div'); el.className = 'day';
+    if (d === current.getDate() && viewMonth === current.getMonth() && viewYear === current.getFullYear()) el.classList.add('today');
+    const key = dateKey(viewYear, viewMonth, d);
+    el.innerHTML = '<div class="day-num">' + d + '</div>';
+    (events[key] || []).forEach(ev => {
+      const ev_el = document.createElement('div'); ev_el.className = 'event'; ev_el.textContent = ev; el.appendChild(ev_el);
+    });
+    el.onclick = () => openModal(key, d);
+    grid.appendChild(el);
+  }
+}
+
+function openModal(key, d) {
+  selectedKey = key;
+  document.getElementById('modalTitle').textContent = MONTHS[viewMonth] + ' ' + d;
+  document.getElementById('modal').classList.add('open');
+  document.getElementById('addForm').classList.remove('open');
+  document.getElementById('eventInput').value = '';
+  renderEventList();
+}
+
+function renderEventList() {
+  const list = document.getElementById('eventList'); list.innerHTML = '';
+  (events[selectedKey] || []).forEach((ev, i) => {
+    const row = document.createElement('div'); row.className = 'event-item';
+    row.innerHTML = '<span>' + ev + '</span><button class="del-btn" onclick="deleteEvent(' + i + ')">x</button>';
+    list.appendChild(row);
+  });
+}
+
+function deleteEvent(i) {
+  events[selectedKey].splice(i, 1);
+  if (!events[selectedKey].length) delete events[selectedKey];
+  save(); renderEventList(); render();
+}
+
+function toggleAddForm() {
+  const f = document.getElementById('addForm'); f.classList.toggle('open');
+  if (f.classList.contains('open')) document.getElementById('eventInput').focus();
+}
+
+function saveEvent() {
+  const val = document.getElementById('eventInput').value.trim(); if (!val) return;
+  addEvent(selectedKey, val);
+  document.getElementById('eventInput').value = '';
+  document.getElementById('addForm').classList.remove('open');
+  renderEventList(); render();
+}
+
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+document.getElementById('modal').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+document.getElementById('eventInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') saveEvent(); });
+function changeMonth(dir) {
+  viewMonth += dir;
+  if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+  if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+  render();
+}
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+render();
+</script>
+</body>
+</html>
